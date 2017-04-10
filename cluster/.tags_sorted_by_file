@@ -1,0 +1,96 @@
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_PROGRAM_VERSION	5.9~svn20110310	//
+!_TAG_PROGRAM_AUTHOR	Darren Hiebert	/dhiebert@users.sourceforge.net/
+!_TAG_PROGRAM_NAME	Exuberant Ctags	//
+CondorJob	cluster/cluster.py	/^class CondorJob(Job):$/;"	c
+Job	cluster/cluster.py	/^class Job:$/;"	c
+SlurmJob	cluster/cluster.py	/^class SlurmJob(Job):$/;"	c
+__init__	cluster/cluster.py	/^  def __init__(self, executable='', args=''):$/;"	m	class:CondorJob
+__init__	cluster/cluster.py	/^  def __init__(self, executable='', args=''):$/;"	m	class:Job
+__init__	cluster/cluster.py	/^  def __init__(self, executable='', args=''):$/;"	m	class:SlurmJob
+add_requirement	cluster/cluster.py	/^  def add_requirement(self, requirement):$/;"	m	class:CondorJob
+alive	cluster/cluster.py	/^  def alive(self):$/;"	m	class:CondorJob
+alive	cluster/cluster.py	/^  def alive(self):$/;"	m	class:Job
+alive	cluster/cluster.py	/^  def alive(self):$/;"	m	class:SlurmJob
+get_env	cluster/cluster.py	/^def get_env():$/;"	f
+hold_after_evict	cluster/cluster.py	/^  def hold_after_evict(self):$/;"	m	class:CondorJob
+kill	cluster/cluster.py	/^  def kill(self):$/;"	m	class:Job
+kill_all_jobs	cluster/cluster.py	/^  def kill_all_jobs(self):$/;"	m	class:CondorJob
+kill_all_jobs	cluster/cluster.py	/^  def kill_all_jobs(self):$/;"	m	class:Job
+kill_all_jobs	cluster/cluster.py	/^  def kill_all_jobs(self):$/;"	m	class:SlurmJob
+kill_all_jobs	cluster/cluster.py	/^def kill_all_jobs():$/;"	f
+kill_jobs	cluster/cluster.py	/^  def kill_jobs(self, pid_list):$/;"	m	class:CondorJob
+kill_jobs	cluster/cluster.py	/^  def kill_jobs(self, pid_list):$/;"	m	class:Job
+kill_jobs	cluster/cluster.py	/^  def kill_jobs(self, pid_list):$/;"	m	class:SlurmJob
+kill_jobs	cluster/cluster.py	/^def kill_jobs(pid_list):$/;"	f
+list_all_jobs	cluster/cluster.py	/^  def list_all_jobs(self):$/;"	m	class:CondorJob
+list_all_jobs	cluster/cluster.py	/^  def list_all_jobs(self):$/;"	m	class:Job
+list_all_jobs	cluster/cluster.py	/^  def list_all_jobs(self):$/;"	m	class:SlurmJob
+list_all_jobs	cluster/cluster.py	/^def list_all_jobs():$/;"	f
+list_jobs	cluster/cluster.py	/^  def list_jobs(self):$/;"	m	class:CondorJob
+list_jobs	cluster/cluster.py	/^  def list_jobs(self):$/;"	m	class:Job
+list_jobs	cluster/cluster.py	/^  def list_jobs(self):$/;"	m	class:SlurmJob
+list_jobs	cluster/cluster.py	/^def list_jobs():$/;"	f
+request_cpus	cluster/cluster.py	/^  def request_cpus(self, requested_cpus):$/;"	m	class:CondorJob
+request_disk	cluster/cluster.py	/^  def request_disk(self, requested_disk):$/;"	m	class:CondorJob
+request_memory	cluster/cluster.py	/^  def request_memory(self, requested_memory):$/;"	m	class:CondorJob
+set_args	cluster/cluster.py	/^  def set_args(self, args):$/;"	m	class:Job
+set_depends	cluster/cluster.py	/^  def set_depends(self, pid):$/;"	m	class:SlurmJob
+set_email	cluster/cluster.py	/^  def set_email(self, email):$/;"	m	class:Job
+set_executable	cluster/cluster.py	/^  def set_executable(self, executable):$/;"	m	class:Job
+set_gpu	cluster/cluster.py	/^  def set_gpu(self, use_gpu):$/;"	m	class:CondorJob
+set_gpu	cluster/cluster.py	/^  def set_gpu(self, use_gpu):$/;"	m	class:Job
+set_gpu	cluster/cluster.py	/^  def set_gpu(self, use_gpu):$/;"	m	class:SlurmJob
+set_job_time	cluster/cluster.py	/^  def set_job_time(self, hours, minutes):$/;"	m	class:SlurmJob
+set_output	cluster/cluster.py	/^  def set_output(self, out):$/;"	m	class:Job
+set_output_prefix	cluster/cluster.py	/^  def set_output_prefix(self, prefix):$/;"	m	class:Job
+set_queue	cluster/cluster.py	/^  def set_queue(self, queue):$/;"	m	class:SlurmJob
+submit	cluster/cluster.py	/^  def submit(self):$/;"	m	class:CondorJob
+submit	cluster/cluster.py	/^  def submit(self):$/;"	m	class:Job
+submit	cluster/cluster.py	/^  def submit(self):$/;"	m	class:SlurmJob
+j	examples/submit.py	/^  j = cluster.CondorJob('\/bin\/ls','-la')$/;"	v
+pid	examples/submit.py	/^  pid = j.submit()$/;"	v
+!_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
+add_help	scripts/cluster	/^    add_help=False)$/;"	v
+condor_args	scripts/cluster	/^  condor_args = parser.add_argument_group('Condor specific arguments')$/;"	v
+conf_files	scripts/cluster	/^  conf_files = []$/;"	v
+description	scripts/cluster	/^    description='Transparently run a job on Condor\/Slurm\/Local',$/;"	v
+exit_handler	scripts/cluster	/^def exit_handler():$/;"	f
+fromfile_prefix_chars	scripts/cluster	/^    fromfile_prefix_chars='@',$/;"	v
+help	scripts/cluster	/^                           help='Hold job (don\\'t restart) if evicted')$/;"	v
+help	scripts/cluster	/^                           help='Request this many cpu cores')$/;"	v
+help	scripts/cluster	/^                           help='Request this much disk space (in MB)')$/;"	v
+help	scripts/cluster	/^                           help='Request this much memory (in MB)')$/;"	v
+help	scripts/cluster	/^                           help='Specify condor requirement')$/;"	v
+help	scripts/cluster	/^                          help='Only start after specified job completes')$/;"	v
+help	scripts/cluster	/^                      help='Direct all output to single OUT file')$/;"	v
+help	scripts/cluster	/^                      help='Direct output to PREFIX.[out\/err\/log] files')$/;"	v
+help	scripts/cluster	/^                      help='Follow the job and print live output')$/;"	v
+help	scripts/cluster	/^                      help='Request a gpu node')$/;"	v
+help	scripts/cluster	/^                      help='Send email to ADDRESS on job completion\/error')$/;"	v
+j	scripts/cluster	/^  j = cluster.get_env()$/;"	v
+parser	scripts/cluster	/^  parser = argparse.ArgumentParser($/;"	v
+pid	scripts/cluster	/^  pid = j.submit()$/;"	v
+query	scripts/cluster	/^    query = j.output + ' already exists. Should I delete it?'$/;"	v
+query_yes_no	scripts/cluster	/^def query_yes_no(question, default="yes"):$/;"	f
+required	scripts/cluster	/^                          required=False,$/;"	v
+slurm_args	scripts/cluster	/^  slurm_args = parser.add_argument_group('Slurm specific arguments')$/;"	v
+tail_proc	scripts/cluster	/^    tail_proc = subprocess.Popen(['tail','-n','+0','-f',j.output])$/;"	v
+tail_proc	scripts/cluster	/^tail_proc = None$/;"	v
+help	scripts/cluster-ls	/^                      help='List all jobs (not only yours).')$/;"	v
+parser	scripts/cluster-ls	/^  parser = argparse.ArgumentParser(description='List jobs currently running'$/;"	v
+help	scripts/cluster-rm	/^                      help='PIDs of jobs to remove.')$/;"	v
+help	scripts/cluster-rm	/^                      help='Remove all jobs.')$/;"	v
+parser	scripts/cluster-rm	/^  parser = argparse.ArgumentParser(description='Remove jobs currently running'$/;"	v
+author	setup.py	/^    author='Matthew Hausknecht',$/;"	v
+author_email	setup.py	/^    author_email='matthew.hausknecht@gmail.com',$/;"	v
+classifiers	setup.py	/^    classifiers=[$/;"	v
+description	setup.py	/^    description='Transparent cluster execution.',$/;"	v
+install_requires	setup.py	/^    install_requires=['psutil'],$/;"	v
+keywords	setup.py	/^    keywords=('condor '$/;"	v
+license	setup.py	/^    license='MIT',$/;"	v
+name	setup.py	/^    name='cluster',$/;"	v
+packages	setup.py	/^    packages=setuptools.find_packages(),$/;"	v
+scripts	setup.py	/^    scripts=['scripts\/cluster', 'scripts\/cluster-ls', 'scripts\/cluster-rm'],$/;"	v
+version	setup.py	/^    version='0.1.5',$/;"	v
