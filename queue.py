@@ -15,10 +15,16 @@ class TaskObject(object):
     self.task = task
     self.task_data = task_data
 
+    self.metadata = {}
+
+  def __str__(self):
+    return str(self.__dict__)
+
 class FIFOQueue(object):
   """First in first out based on timestamps"""
   def __init__(self, queue_dir):
     self.queue_dir = queue_dir
+    self.queue_name = self.queue_dir.split("/")[-1]
     if not os.path.exists(self.queue_dir):
       print "creating new FIFO queue_dir: %s", % self.queue_dir
       os.makedirs(self.queue_dir)
@@ -44,15 +50,18 @@ class FIFOQueue(object):
     return earliest_task
 
   def pop(self, new_name=None):
-    earliest_task = self.__find_earliest_task()
-
-    if earliest_task is None:
-      return None
-
-    with open(earliest_task, 'rb') as f:
-      task_object = jsonpickle.decode(f.read())
     if new_name is None:
-      os.remove(earliest_task)
-    else:
-      os.rename(earliest_task, new_name)
+      new_name = "/tmp/%s_tmp.task" % self.queue_name
+
+    while True:
+      earliest_task = self.__find_earliest_task()
+      if os.path.exists(earliest_task):
+        break
+      if earliest_task is None:
+        return None
+
+    os.rename(earliest_task, new_name)
+    with open(new_name, 'rb') as f:
+      task_object = jsonpickle.decode(f.read())
+
     return task_object
