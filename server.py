@@ -1,5 +1,7 @@
 import os, sys, time, random, pprint, shutil, copy, glob
 import cPickle as pickle
+from collections import defaultdict
+import numpy as np
 
 from util import Logger, getTime, full_path, updateConfig
 from queue import FIFOQueue, TaskObject
@@ -33,6 +35,12 @@ DEFAULT_CONFIG = \
   "return_failures": False,
   # Whether to discard results not submitted by current instance of server
   "return_old_results": False,
+  # Whether to use time elapsed for past tasks to auto estimate tasks
+  "auto_estimate_time": True,
+  # Auto estimated time is mean + k * std_dev, where k is below
+  "auto_estimate_time_std_dev": 2,
+  # Minimum number of samples before we can auto estimate
+  "auto_estimate_time_min_samples": 10,
 
   # Client Configuration below #
   # Length of random string for client name
@@ -49,7 +57,7 @@ DEFAULT_CONFIG = \
   "client_sleep_time": 0.1,
   # Interval for heartbeats
   "client_status_update_time": 1,
-  # If the task takes longer than this factor, it is straggler
+  # If the task takes longer than this factor of estimated time, it is straggler
   "client_straggler_threshold": 2,
 }
 
@@ -59,6 +67,7 @@ class CompletionServiceServer(object):
     self.start_time = time.time()
     self.config = updateConfig(DEFAULT_CONFIG, config_file)
     self.submitted_tasks = {}
+    self.tasks_elapsed_times = []
 
     if not os.path.exists(self.config['base_dir']):
       os.makedirs(self.config['base_dir'])
@@ -148,6 +157,13 @@ class CompletionServiceServer(object):
         (len(task_data)/1000.0, self.config['task_data_maxsize'])
       return False
 
+    if self.config['auto_estimate_time'] and estimated_time is None and \
+      len(self.tasks_elapsed_times) > self.config['auto_estimate_time_min_samples']:
+      estimated_time = np.mean(self.tasks_elapsed_times) + \
+        self.config['auto_estimate_time_std_dev'] * np.std(self.tasks_elapsed_times)
+      if self.config['verbose']:
+        print "Auto estimated time for task is %s" % estimated_time
+
     tasks_to_submit = []
     first_submit_task = TaskObject(task=task, task_data=task_data,
       is_result=False, estimated_time=estimated_time)
@@ -188,6 +204,7 @@ class CompletionServiceServer(object):
           (self.config['return_old_results'] or \
           result_task.uid in self.submitted_tasks):
 
+          self.tasks_elapsed_times.append(result_task.metadata['time_elapsed'])
           if self.config['verbose']:
             print "Returning result task: %s" % result_task
           return result_task
@@ -205,7 +222,7 @@ class CompletionServiceServer(object):
 if __name__ == "__main__":
   x = CompletionServiceServer(clean_start=True)
 
-  n = 1
+  n = 199
   for i in xrange(n):
     x.submitTask("test_tasks/square.py", i)
   for i in xrange(10000000):

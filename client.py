@@ -156,6 +156,7 @@ class CompletionServiceClient(object):
             submit_task):
             resubmitted_straggler = True
       output_data, output_err = p.communicate()
+      task_end_time = time.time()
 
       if len(output_data) > self.config['client_output_maxsize'] * 1000:
         output_data = output_data[:self.config['client_output_maxsize'] * 1000]
@@ -164,7 +165,7 @@ class CompletionServiceClient(object):
       metadata = {
         'return_code': p.returncode,
         'error': output_err,
-        'time_elapsed': time.time() - task_start_time
+        'time_elapsed': task_end_time - task_start_time
       }
 
       if p.returncode != 0:
