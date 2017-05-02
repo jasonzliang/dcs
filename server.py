@@ -1,4 +1,4 @@
-import os, sys, time, random, ast, pprint, shutil, copy, glob
+import os, sys, time, random, pprint, shutil, copy, glob
 import cPickle as pickle
 
 from util import Logger, getTime, full_path, updateConfig
@@ -16,7 +16,7 @@ DEFAULT_CONFIG = \
   # Maximum size in kB for task data
   "task_data_maxsize": 64,
   # Time to sleep in seconds when waiting for results to return
-  "sleep_time": 1.0,
+  "sleep_time": 0.1,
   # Whether to print stuff out
   "verbose": True,
   # Name for global submit queue
@@ -31,6 +31,8 @@ DEFAULT_CONFIG = \
   "submit_duplicates": True,
   # Whether to return failures or not
   "return_failures": False,
+  # Whether to discard results not submitted by current instance of server
+  "return_old_results": False,
 
   # Client Configuration below #
   # Length of random string for client name
@@ -54,7 +56,9 @@ DEFAULT_CONFIG = \
 class CompletionServiceServer(object):
   """Class for server that sends out tasks to clients"""
   def __init__(self, config_file=None, clean_start=False):
+    self.start_time = time.time()
     self.config = updateConfig(DEFAULT_CONFIG, config_file)
+    self.submitted_tasks = {}
 
     if not os.path.exists(self.config['base_dir']):
       os.makedirs(self.config['base_dir'])
@@ -80,15 +84,17 @@ class CompletionServiceServer(object):
       self.config['result_queue_name']))
 
     self.__update_status()
+
     if clean_start:
+      self.config['return_old_results'] = False
       self.submit_queue.purge()
       self.result_queue.purge()
       shutil.rmtree(self.failed_client_dir)
       os.makedirs(self.failed_client_dir)
       if self.config['verbose']:
+        print "Warning: 'return_old_results' flag has been force set to True!"
         print "Warning: submit and result queues have been purged!"
-        print "Warning: failed client directory has been cleaned!"
-
+        print "Warning: old failed client logs has been deleted!"
 
   def __getWorkingNonWorkingClients(self):
     working_clients = []; nonworking_clients = []; working_clients_on_tasks = []
@@ -97,7 +103,7 @@ class CompletionServiceServer(object):
 
       # If heartbeat file does not exist, we wait and try again
       if len(glob.glob(os.path.join(client_dir, "heartbeat_*"))) == 0:
-        time.sleep(self.config['sleep_time'])
+        time.sleep(1.0)
       try:
         heartbeat = (glob.glob(os.path.join(client_dir, "heartbeat_*"))[0]).split("/")[-1]
         timestamp = float(heartbeat.split("_")[1])
@@ -135,6 +141,7 @@ class CompletionServiceServer(object):
   def submitTask(self, task, task_data, estimated_time=None):
     self.__update_status()
 
+    task = full_path(task)
     task_data = str(task_data)
     if len(task_data) > self.config['task_data_maxsize'] * 1000:
       print "Error: task data size (%s kb) exceeded maximum size (%s kb)" % \
@@ -160,6 +167,7 @@ class CompletionServiceServer(object):
 
     for submit_task in tasks_to_submit:
       self.submit_queue.push(submit_task)
+      self.submitted_tasks[submit_task.uid] = submit_task.time_created
       if self.config['verbose']:
         print "Submitted task: %s" % submit_task
 
@@ -175,11 +183,18 @@ class CompletionServiceServer(object):
       result_task = self.result_queue.pop(new_name=result_task_name)
       if result_task is not None:
         os.remove(result_task_name)
-        if self.config['verbose']:
-          print "Result task: %s" % result_task
-        if self.config['return_failures'] or \
-          result_task.metadata['return_code'] == 0:
+        if (self.config['return_failures'] or \
+          result_task.metadata['return_code'] == 0) and \
+          (self.config['return_old_results'] or \
+          result_task.uid in self.submitted_tasks):
+
+          if self.config['verbose']:
+            print "Returning result task: %s" % result_task
           return result_task
+        else:
+
+          if self.config['verbose']:
+            print "Discarding result task: %s" % result_task
 
       time.sleep(self.config['sleep_time'])
 
@@ -190,9 +205,8 @@ class CompletionServiceServer(object):
 if __name__ == "__main__":
   x = CompletionServiceServer(clean_start=True)
 
-  n = 100
+  n = 1
   for i in xrange(n):
-    x.submitTask("/home/jason/Desktop/cs380l/cs380l_final_proj/test_tasks/square.py",
-      i)
+    x.submitTask("test_tasks/square.py", i)
   for i in xrange(10000000):
     print "i: %s" % x.getResults().task_data

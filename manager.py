@@ -1,4 +1,4 @@
-import os, sys, time, random, ast, pprint, shutil, copy, glob, subprocess
+import os, sys, time, random, pprint, copy, glob, subprocess
 import cPickle as pickle
 
 from util import Logger, getTime, full_path, updateConfig
@@ -8,6 +8,11 @@ class ClientManager(object):
   """Simple Class to Manage Clients on Condor and Locally"""
   def __init__(self, config_file=None):
     self.config = updateConfig(DEFAULT_CONFIG, config_file)
+    self.__setManagerConfigFile()
+
+    if not os.path.exists(self.config['base_dir']):
+      print "Error, basedir does not exist: %s" % self.config['base_dir']
+      sys.exit()
 
   def __getWorkingNonWorkingClients(self):
     working_clients = []; nonworking_clients = []; working_clients_on_tasks = []
@@ -32,6 +37,14 @@ class ClientManager(object):
           working_clients_on_tasks.append(client_dir)
     return working_clients, nonworking_clients, working_clients_on_tasks
 
+  def __setManagerConfigFile(self):
+    self.manager_config_file = os.path.join(self.config['base_dir'],
+      "manager_config")
+    with open(self.manager_config_file, 'wb') as f:
+      f.write(str(self.config))
+      f.flush()
+      os.fsync(f.fileno())
+
   def getClientStatus(self):
     working_clients, nonworking_clients, working_clients_on_tasks \
       = self.__getWorkingNonWorkingClients()
@@ -45,13 +58,14 @@ class ClientManager(object):
     print "Number of Working Condor Clients: %s" % \
       len([x for x in working_clients if "condor" in x])
 
-  def addClientsLocal(self, n):
+  def startClientsLocal(self, n):
     n = int(n)
     for i in xrange(n):
       # launch new clients
-      cmd = "python client.py"
+      assert os.path.exists(self.manager_config_file)
+      cmd = "python client.py %s %s" % (self.manager_config_file, "local")
       p = subprocess.Popen("%s > /dev/null 2>&1" % cmd, shell=True)
-      # print "running command: %s" % p.__dir__
+      print "launching client %s: %s" % (i, cmd)
       # p = subprocess.Popen(['python', 'client.py'],
       #   # cwd=os.getcwd(),
       #   shell=False,
@@ -60,19 +74,61 @@ class ClientManager(object):
       #   stderr=subprocess.PIPE)
       # print p.__dict__
 
-    print "Added %s local clients" % n
+    print "Started %s local clients" % n
 
-  def removeClientsLocal(self, n):
+  def startClientsCondor(self, n):
+    n = int(n)
+    condor_file_string = \
+"""Executable = /usr/local/bin/python
+Arguments = %s
+Universe = vanilla
+Environment = ONCONDOR=true
+Getenv = true
+Requirements = ARCH == "X86_64" && !GPU
+
++Group = "GRAD"
++Project = "AI_ROBOTICS"
++ProjectDescription = "Completion Service Client"
+
+Input = /dev/null
+Error = /dev/null
+Output = /dev/null
+Log = /dev/null
+Queue 1
+"""
+    client_path = full_path("client.py")
+    assert os.path.exists(client_path)
+    assert os.path.exists(self.manager_config_file)
+    arguments = "%s %s %s" % (client_path, self.manager_config_file, "condor")
+    condor_file_string = condor_file_string % arguments
+    # print condor_file_string
+
+    manager_condor_file = os.path.join(self.config['base_dir'],
+      "manager_condor_file")
+    with open(manager_condor_file, 'wb') as f:
+      f.write(condor_file_string)
+      f.flush()
+      os.fsync(f.fileno())
+
+    for i in xrange(n):
+      output = subprocess.Popen(["condor_submit", "-verbose",
+        manager_condor_file], stdout=subprocess.PIPE).communicate()[0]
+      print "launching client %s: %s" % (i, output)
+
+    print "Started %s condor clients" % n
+
+  def stopClientsLocal(self, n):
     n = int(n)
     working_clients, nonworking_clients, working_clients_on_tasks \
       = self.__getWorkingNonWorkingClients()
 
-    if n > len(working_clients):
-      print "warning, n > # of working clients! removing all clients!"
-      n = len(working_clients)
+    local_working_clients = [x for x in working_clients if "local" in x]
+    if n > len(local_working_clients):
+      print "warning, n > # of working clients! stopping all clients!"
+      n = len(local_working_clients)
 
     for i in xrange(n):
-      client_dir = working_clients[i]
+      client_dir = local_working_clients[i]
       cmd_file = os.path.join(client_dir, "command")
       with open(cmd_file, 'wb') as f:
         f.write("EXIT")
@@ -80,7 +136,28 @@ class ClientManager(object):
         os.fsync(f.fileno())
       os.rename(cmd_file, cmd_file + ".txt")
 
-    print "Removed %s local clients" % n
+    print "Stopped %s local clients" % n
+
+  def stopClientsCondor(self, n):
+    n = int(n)
+    working_clients, nonworking_clients, working_clients_on_tasks \
+      = self.__getWorkingNonWorkingClients()
+
+    condor_working_clients = [x for x in working_clients if "condor" in x]
+    if n > len(condor_working_clients):
+      print "warning, n > # of working clients! stopping all clients!"
+      n = len(condor_working_clients)
+
+    for i in xrange(n):
+      client_dir = condor_working_clients[i]
+      cmd_file = os.path.join(client_dir, "command")
+      with open(cmd_file, 'wb') as f:
+        f.write("EXIT")
+        f.flush()
+        os.fsync(f.fileno())
+      os.rename(cmd_file, cmd_file + ".txt")
+
+    print "Stopped %s condor clients" % n
 
 if __name__ == "__main__":
   if len(sys.argv) < 2:

@@ -5,15 +5,12 @@ from util import Logger, getTime, full_path, randString, updateConfig
 from queue import FIFOQueue, TaskObject
 
 class CompletionServiceClient(object):
-  def __init__(self, config_file=None, is_local=True):
+  def __init__(self, config_file=None, runmode="local"):
+    self.start_time = time.time()
     self.config = updateConfig(DEFAULT_CONFIG, config_file)
-    self.is_local = is_local
-    if self.is_local:
-      client_running_on = "local"
-    else:
-      client_running_on = "condor"
+    self.runmode = runmode
 
-    self.client_name = "client_%s_%s" % (client_running_on,
+    self.client_name = "client_%s_%s" % (runmode,
       randString(self.config['client_uid_length']))
     self.client_dir = os.path.join(self.config['base_dir'], self.client_name)
     self.create_client_dir()
@@ -189,7 +186,9 @@ class CompletionServiceClient(object):
     self.exit()
 
 if __name__ == "__main__":
-  if len(sys.argv) != 2:
+  if len(sys.argv) < 2:
     c = CompletionServiceClient()
+  elif len(sys.argv) < 3:
+    c = CompletionServiceClient(config_file=sys.argv[1])
   else:
-    c = CompletionServiceClient(sys.argv[1])
+    c = CompletionServiceClient(config_file=sys.argv[1], runmode=sys.argv[2])
