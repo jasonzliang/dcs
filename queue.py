@@ -56,14 +56,15 @@ class FIFOQueue(object):
       str(task_object.estimated_time),
       randString(16))
 
-    if DEBUG_MODE:
-      print self.queue_dir, task_file
     task_file = os.path.join(self.queue_dir, task_file)
     with open(task_file, 'wb') as f:
       f.write(task_obj_str)
       f.flush()
       os.fsync(f.fileno())
     os.rename(task_file, task_file + ".task")
+
+    if DEBUG_MODE:
+      print "pushing task to %s: %s" % (self.queue_dir, task_file)
 
   def _find_best_task(self):
     # For FIFO this is the earliest task
@@ -99,6 +100,8 @@ class FIFOQueue(object):
       task_object = pickle.load(f)
       # task_object = jsonpickle.decode(f.read())
 
+    if DEBUG_MODE:
+      print "popping task from %s: %s" % (self.queue_dir, best_task)
     return task_object
 
   def purge(self):

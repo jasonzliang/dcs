@@ -129,7 +129,7 @@ class CompletionServiceClient(object):
     while not self.stop_running:
       submit_task_name = os.path.join(self.client_dir, "client.task")
       submit_task = self.submit_queue.pop(new_name=submit_task_name,
-        max_tries=100)
+        max_tries=10)
 
       if submit_task is None:
         time.sleep(self.config['client_sleep_time'])
