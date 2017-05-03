@@ -9,7 +9,7 @@ from queue import FIFOQueue, TaskObject
 """Default config file settings"""
 DEFAULT_CONFIG = \
 {
-  # Whether to print output to terminal or not
+  # Whether to print output to terminal/logfile or just logfile
   "output_terminal": True,
   # Modes, allowed are: local, condor, hybrid
   "runmode": "hybrid",
