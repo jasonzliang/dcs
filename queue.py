@@ -1,4 +1,4 @@
-import os, sys, time, random, glob, md5
+import os, sys, time, random, glob, md5, shutil
 import cPickle as pickle
 
 from util import randString
@@ -107,18 +107,20 @@ class FIFOQueue(object):
   def purge(self):
     if DEBUG_MODE:
       print "purging queue: %s" % self.queue_dir
-    for task_file in glob.glob(os.path.join(self.queue_dir, "*.task")):
-      try:
-        os.rename(task_file, "/tmp/delete_me.task")
-      except:
-        continue
-      os.remove("/tmp/delete_me.task")
+    os.system("rm -rf %s/*.task" % self.queue_dir)
+    # for task_file in glob.glob(os.path.join(self.queue_dir, "*.task")):
+    #   try:
+    #     os.rename(task_file, "/tmp/delete_me.task")
+    #   except:
+    #     continue
+    #   os.remove("/tmp/delete_me.task")
 
   def delete(self):
     if DEBUG_MODE:
       print "deleting queue: %s" % self.queue_dir
-    self.purge()
-    os.remove(self.queue_dir)
+    os.system("rm -rf %s" % self.queue_dir)
+    # self.purge()
+    # shutil.rmtree(self.queue_dir)
 
   def length(self):
     return len(glob.glob(os.path.join(self.queue_dir, "*.task")))

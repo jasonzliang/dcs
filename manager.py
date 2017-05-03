@@ -14,6 +14,14 @@ class ClientManager(object):
       print "Error, basedir does not exist: %s" % self.config['base_dir']
       sys.exit()
 
+  def __setManagerConfigFile(self):
+    self.manager_config_file = os.path.join(self.config['base_dir'],
+      "manager_config")
+    with open(self.manager_config_file, 'wb') as f:
+      f.write(str(self.config))
+      f.flush()
+      os.fsync(f.fileno())
+
   def __getWorkingNonWorkingClients(self):
     working_clients = []; nonworking_clients = []; working_clients_on_tasks = []
     for client_dir in glob.glob(os.path.join(self.config['base_dir'],
@@ -37,32 +45,26 @@ class ClientManager(object):
           working_clients_on_tasks.append(client_dir)
     return working_clients, nonworking_clients, working_clients_on_tasks
 
-  def __setManagerConfigFile(self):
-    self.manager_config_file = os.path.join(self.config['base_dir'],
-      "manager_config")
-    with open(self.manager_config_file, 'wb') as f:
-      f.write(str(self.config))
-      f.flush()
-      os.fsync(f.fileno())
-
-  def getClientStatus(self):
+  def getClientStatus(self, quiet_mode=False):
     def getLocalClients(client_list):
       return [x for x in client_list if "local" in x]
-    def getCondorClients(client_list)
+    def getCondorClients(client_list):
       return [x for x in client_list if "condor" in x]
+
     working_clients, nonworking_clients, working_clients_on_tasks \
       = self.__getWorkingNonWorkingClients()
     local_working_clients = getLocalClients(working_clients)
     condor_working_clients = getCondorClients(working_clients)
 
-    print "Number of Working Clients: %s" % len(working_clients)
-    print "Number of Working Clients with Tasks %s" % len(working_clients_on_tasks)
-    print "Number of Nonworking Clients: %s" % len(nonworking_clients)
-    print
-    print "Number of Working Local Clients: %s" % len(local_working_clients)
-    print "Number of Working Condor Clients: %s" % len(condor_working_clients)
+    if not quiet_mode:
+      print "Number of Working Clients: %s" % len(working_clients)
+      print "Number of Working Clients with Tasks %s" % len(working_clients_on_tasks)
+      print "Number of Nonworking Clients: %s" % len(nonworking_clients)
+      print
+      print "Number of Working Local Clients: %s" % len(local_working_clients)
+      print "Number of Working Condor Clients: %s" % len(condor_working_clients)
 
-    return working_clients, nonworking_clients, working_clients_on_tasks,
+    return working_clients, nonworking_clients, working_clients_on_tasks, \
       local_working_clients, condor_working_clients
 
   def startClientsLocal(self, n):
@@ -72,7 +74,7 @@ class ClientManager(object):
       assert os.path.exists(self.manager_config_file)
       cmd = "python client.py %s %s" % (self.manager_config_file, "local")
       p = subprocess.Popen("%s > /dev/null 2>&1" % cmd, shell=True)
-      print "launching client %s: %s" % (i, cmd)
+      print "launching local client %s: %s" % (i, cmd)
       # p = subprocess.Popen(['python', 'client.py'],
       #   # cwd=os.getcwd(),
       #   shell=False,
@@ -120,37 +122,42 @@ Queue 1
     for i in xrange(n):
       output = subprocess.Popen(["condor_submit", "-verbose",
         manager_condor_file], stdout=subprocess.PIPE).communicate()[0]
-      print "launching client %s: %s" % (i, output)
+      print "launching condor client %s" % i
 
     print "Started %s condor clients" % n
 
   def startClients(self, n):
     n = max(int(n), 0)
     if self.config['runmode'] == "local":
-      self.startClientsLocal(self, n)
-    elif self.config['runmode'] == "condor"
-      self.startClientsCondor(self, n)
-    elif self.config['runmode'] == "hybrid"
+      self.startClientsLocal(n)
+    elif self.config['runmode'] == "condor":
+      self.startClientsCondor(n)
+    elif self.config['runmode'] == "hybrid":
       num_clients_local = min(n, multiprocessing.cpu_count())
       num_clients_condor = n - num_clients_local
       self.startClientsLocal(num_clients_local)
       if num_clients_condor >= 0:
         self.startClientsCondor(num_clients_condor)
 
+  def stopAllClients(self):
+    n = sys.maxint
+    self.stopClients(n, "local")
+    self.stopClients(n, "condor")
+
   def stopClientsLocal(self, n):
-    self.__stopClients(n, "local")
+    self.stopClients(n, "local")
 
   def stopClientsCondor(self, n):
-    self.__stopClients(n, "condor")
+    self.stopClients(n, "condor")
 
-  def __stopClients(self, n, mode):
+  def stopClients(self, n, mode):
     n = max(int(n), 0)
     working_clients, nonworking_clients, working_clients_on_tasks \
       = self.__getWorkingNonWorkingClients()
 
     working_clients2 = [x for x in working_clients if mode in x]
     if n > len(working_clients2):
-      print "warning, n > # of working clients! stopping all clients!"
+      # print "warning, n > # of working clients! stopping all clients!"
       n = len(working_clients2)
 
     for i in xrange(n):

@@ -9,6 +9,8 @@ from queue import FIFOQueue, TaskObject
 """Default config file settings"""
 DEFAULT_CONFIG = \
 {
+  # Whether to print output to terminal or not
+  "output_terminal": True,
   # Modes, allowed are: local, condor, hybrid
   "runmode": "hybrid",
   # Base directory where all the files are located
@@ -33,8 +35,10 @@ DEFAULT_CONFIG = \
   "return_failures": False,
   # Whether to return old results not submitted by current instance of server
   "return_old_results": False,
+  # Whether to return duplicate tasks or not
+  "return_duplicate_tasks": True,
   # Whether to use time elapsed for completed tasks to estimate future task time
-  "auto_estimate_time": True,
+  "auto_estimate_time": False,
   # Auto estimated time is mean + k * std_dev, where k is below
   "auto_estimate_time_std_dev": 2,
   # Minimum number of samples before we can auto estimate
@@ -64,8 +68,9 @@ class CompletionServiceServer(object):
   def __init__(self, config_file=None, clean_start=False):
     self.start_time = time.time()
     self.config = updateConfig(DEFAULT_CONFIG, config_file)
-    self.submitted_task_ids = {}
-    self.tasks_elapsed_times = []
+    self.submitted_task_idmap = {}
+    self.returned_task_timemap = {}
+    self.last_updated_status = 0.0
 
     if not os.path.exists(self.config['base_dir']):
       os.makedirs(self.config['base_dir'])
@@ -78,7 +83,8 @@ class CompletionServiceServer(object):
     if not os.path.exists(self.failed_client_dir):
       os.makedirs(self.failed_client_dir)
 
-    self.logger = Logger(os.path.join(self.server_dir, "log.txt"), "a")
+    self.logger = Logger(os.path.join(self.server_dir, "log.txt"),
+      write_mode="a", term=self.config["output_terminal"])
     sys.stdout = self.logger
     sys.stderr = self.logger
 
@@ -93,15 +99,22 @@ class CompletionServiceServer(object):
     self.__update_status()
 
     if clean_start:
+      self.reset()
       self.config['return_old_results'] = False
-      self.submit_queue.purge()
-      self.result_queue.purge()
-      shutil.rmtree(self.failed_client_dir)
-      os.makedirs(self.failed_client_dir)
-      if self.config['verbose']:
-        print "Warning: 'return_old_results' flag has been force set to True!"
-        print "Warning: submit and result queues have been purged!"
-        print "Warning: old failed client logs has been deleted!"
+      print "Warning: 'return_old_results' flag has been force set to True!"
+
+  def reset(self):
+    self.submitted_task_idmap = {}
+    self.returned_task_timemap = {}
+    self.submit_queue.purge()
+    self.result_queue.purge()
+    shutil.rmtree(self.failed_client_dir)
+    os.makedirs(self.failed_client_dir)
+
+    if self.config['verbose']:
+      print "Warning: 'submitted_task_idmap' and 'returned_task_timemap' reset!"
+      print "Warning: submit and result queues have been purged!"
+      print "Warning: old failed client logs has been deleted!"
 
   def __getWorkingNonWorkingClients(self):
     working_clients = []; nonworking_clients = []; working_clients_on_tasks = []
@@ -127,6 +140,9 @@ class CompletionServiceServer(object):
     return working_clients, nonworking_clients, working_clients_on_tasks
 
   def __update_status(self):
+    if time.time() - self.last_updated_status < self.config['sleep_time']:
+      return
+
     # Return failed tasks back to the queue
     working_clients, nonworking_clients, working_clients_on_tasks \
       = self.__getWorkingNonWorkingClients()
@@ -145,6 +161,8 @@ class CompletionServiceServer(object):
       if self.config['verbose']:
         print "Removed failed client: %s" % client_dir
 
+    self.last_updated_status = time.time()
+
   def submitTask(self, task, task_data, estimated_time=None):
     task = str(task)
     task_data = str(task_data)
@@ -160,10 +178,11 @@ class CompletionServiceServer(object):
         (len(task_data)/1000.0, self.config['task_data_maxsize'])
       return None
 
+    returned_task_times = self.returned_task_timemap.values()
     if self.config['auto_estimate_time'] and estimated_time is None and \
-      len(self.tasks_elapsed_times) > self.config['auto_estimate_time_min_samples']:
-      estimated_time = np.mean(self.tasks_elapsed_times) + \
-        self.config['auto_estimate_time_std_dev'] * np.std(self.tasks_elapsed_times)
+      len(returned_task_times) > self.config['auto_estimate_time_min_samples']:
+      estimated_time = np.mean(returned_task_times) + \
+        self.config['auto_estimate_time_std_dev'] * np.std(returned_task_times)
       if self.config['verbose']:
         print "Auto estimated time for task is %s" % estimated_time
 
@@ -186,7 +205,7 @@ class CompletionServiceServer(object):
 
     for submit_task in tasks_to_submit:
       self.submit_queue.push(submit_task)
-      self.submitted_task_ids[submit_task.uid] = submit_task.time_created
+      self.submitted_task_idmap[submit_task.uid] = submit_task.time_created
       if self.config['verbose']:
         print "Submitted task: %s" % submit_task
 
@@ -194,22 +213,27 @@ class CompletionServiceServer(object):
 
   def getResults(self, timeout=1e308):
     start_time = time.time()
-
     while time.time() - start_time < timeout:
-      self.__update_status()
 
+      self.__update_status()
       result_task_name = os.path.join(self.server_dir, "server.task")
       result_task = self.result_queue.pop(new_name=result_task_name)
+
       if result_task is not None:
         os.remove(result_task_name)
         if (self.config['return_failures'] or \
           result_task.metadata['return_code'] == 0) and \
           (self.config['return_old_results'] or \
-          result_task.uid in self.submitted_task_ids):
+          result_task.uid in self.submitted_task_idmap) and \
+          (self.config['return_duplicate_tasks'] or \
+          result_task.uid not in self.returned_task_timemap):
 
-          self.tasks_elapsed_times.append(result_task.metadata['time_elapsed'])
+          if result_task.metadata['return_code'] == 0:
+            self.returned_task_timemap[result_task.uid] = \
+              result_task.metadata['time_elapsed']
           if self.config['verbose']:
             print "Returning result task: %s" % result_task
+
           return result_task
         else:
 
@@ -218,16 +242,14 @@ class CompletionServiceServer(object):
 
       time.sleep(self.config['sleep_time'])
 
-
     print "Error: timeout occurred: %s" % timeout
     return None
 
 if __name__ == "__main__":
   x = CompletionServiceServer(clean_start=True)
-
-  n = 10
+  n = 100
   for i in xrange(n):
-    x.submitTask("test_tasks/square.py", i, estimated_time=random.random() + 0.5)
+    x.submitTask("test_tasks/square_5.py", i)
     # print "i: %s" % x.getResults().task_data
 
   for i in xrange(10000000):
