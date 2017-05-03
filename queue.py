@@ -39,10 +39,13 @@ class FIFOQueue(object):
     self.queue_dir = queue_dir
     self.queue_name = self.queue_dir.split("/")[-1]
     if not os.path.exists(self.queue_dir):
-      print "creating new FIFOQueue queue_dir: %s" % self.queue_dir
+      print "creating new %s queue_dir: %s" % (self.__class__.__name__,
+        self.queue_dir)
+
       os.makedirs(self.queue_dir)
     else:
-      print "using existing queue_dir for FIFOQueue: %s" % self.queue_dir
+      print "using existing queue_dir for %s: %s" % (self.__class__.__name__,
+        self.queue_dir)
 
   def push(self, task_object):
     task_obj_str = pickle.dumps(task_object)
@@ -62,7 +65,7 @@ class FIFOQueue(object):
       os.fsync(f.fileno())
     os.rename(task_file, task_file + ".task")
 
-  def __find_best_task(self):
+  def _find_best_task(self):
     # For FIFO this is the earliest task
     earliest_timestamp = 1e308
     earliest_task = None
@@ -80,7 +83,7 @@ class FIFOQueue(object):
 
     counter = 0
     while True:
-      best_task = self.__find_best_task()
+      best_task = self._find_best_task()
       if best_task is None or counter >= max_tries:
         return None
       try:
@@ -116,3 +119,28 @@ class FIFOQueue(object):
 
   def length(self):
     return len(glob.glob(os.path.join(self.queue_dir, "*.task")))
+
+class ShortestTaskQueue(FIFOQueue):
+  """Queue that pops based on shortest estimated time, then based on date"""
+
+  def _find_best_task(self):
+    # For FIFO this is the earliest task
+    task_files = glob.glob(os.path.join(self.queue_dir, "*.task"))
+    if len(task_files) == 0:
+      return None
+
+    task_file_tuples = []
+    for task_file in task_files:
+      task_file_fields = task_file.split("/")[-1].split("_")
+      task_timestamp = float(task_file_fields[0])
+      try:
+        task_estimated_time = float(task_file_fields[1])
+      except:
+        task_estimated_time = 1e308
+      task_file_tuples.append((task_estimated_time, task_timestamp, task_file))
+
+    sorted_task_file_tuples = sorted(task_file_tuples, key=lambda x:(x[0], x[1]))
+
+    # print [x[2].split("/")[-1] for x in sorted_task_file_tuples]
+    # print [x[2].split("/")[-1] for x in sorted_task_file_tuples]
+    return sorted_task_file_tuples[0][2]

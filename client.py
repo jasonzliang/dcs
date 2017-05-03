@@ -2,7 +2,7 @@ import os, time, sys, random, string, subprocess, pprint
 
 from server import DEFAULT_CONFIG
 from util import Logger, getTime, full_path, randString, updateConfig
-from queue import FIFOQueue, TaskObject
+from queue import FIFOQueue, TaskObject, ShortestTaskQueue
 
 class CompletionServiceClient(object):
   def __init__(self, config_file=None, runmode="local"):
@@ -23,9 +23,10 @@ class CompletionServiceClient(object):
       self.client_name)
     pprint.pprint(self.config, indent=2); print
 
-    self.submit_queue = FIFOQueue(queue_dir=os.path.join(self.config['base_dir'],
+    my_queue = ShortestTaskQueue if self.config['runmode'] == "hybrid" else FIFOQueue
+    self.submit_queue = my_queue(queue_dir=os.path.join(self.config['base_dir'],
       self.config['submit_queue_name']))
-    self.result_queue = FIFOQueue(queue_dir=os.path.join(self.config['base_dir'],
+    self.result_queue = my_queue(queue_dir=os.path.join(self.config['base_dir'],
       self.config['result_queue_name']))
 
     self.stop_running = False
@@ -148,13 +149,17 @@ class CompletionServiceClient(object):
         stderr=subprocess.PIPE, shell=True, bufsize=-1)
 
       resubmitted_straggler = False
-      while p.poll() is None:
-        time.sleep(self.config['client_sleep_time'])
+      while True:
         self.update_status()
         if not resubmitted_straggler:
           if self.check_task_straggling(time.time() - task_start_time,
             submit_task):
             resubmitted_straggler = True
+
+        if p.poll() is not None:
+          break
+        time.sleep(self.config['client_sleep_time'])
+
       output_data, output_err = p.communicate()
       task_end_time = time.time()
 
@@ -162,20 +167,21 @@ class CompletionServiceClient(object):
         output_data = output_data[:self.config['client_output_maxsize'] * 1000]
       if len(output_err) > self.config['client_error_maxsize'] * 1000:
         output_data = output_err[:self.config['client_error_maxsize'] * 1000]
-      metadata = {
-        'return_code': p.returncode,
-        'error': output_err,
-        'time_elapsed': task_end_time - task_start_time
-      }
 
       if p.returncode != 0:
         submit_task.num_failures += 1
         self.check_task_failure(submit_task)
 
+      metadata = {
+        'return_code': p.returncode,
+        'error': output_err,
+        'time_elapsed': task_end_time - task_start_time
+      }
       return_task = TaskObject(task=None, task_data=output_data, is_result=True,
         metadata=metadata)
       return_task.num_failures = submit_task.num_failures
       return_task.uid = submit_task.uid
+      return_task.estimated_time = submit_task.estimated_time
 
       self.result_queue.push(return_task)
       if self.config['client_verbose']:

@@ -1,4 +1,4 @@
-import os, sys, time, random, pprint, copy, glob, subprocess
+import os, sys, time, random, pprint, copy, glob, subprocess, multiprocessing
 import cPickle as pickle
 
 from util import Logger, getTime, full_path, updateConfig
@@ -46,20 +46,27 @@ class ClientManager(object):
       os.fsync(f.fileno())
 
   def getClientStatus(self):
+    def getLocalClients(client_list):
+      return [x for x in client_list if "local" in x]
+    def getCondorClients(client_list)
+      return [x for x in client_list if "condor" in x]
     working_clients, nonworking_clients, working_clients_on_tasks \
       = self.__getWorkingNonWorkingClients()
+    local_working_clients = getLocalClients(working_clients)
+    condor_working_clients = getCondorClients(working_clients)
 
     print "Number of Working Clients: %s" % len(working_clients)
     print "Number of Working Clients with Tasks %s" % len(working_clients_on_tasks)
     print "Number of Nonworking Clients: %s" % len(nonworking_clients)
     print
-    print "Number of Working Local Clients: %s" % \
-      len([x for x in working_clients if "local" in x])
-    print "Number of Working Condor Clients: %s" % \
-      len([x for x in working_clients if "condor" in x])
+    print "Number of Working Local Clients: %s" % len(local_working_clients)
+    print "Number of Working Condor Clients: %s" % len(condor_working_clients)
+
+    return working_clients, nonworking_clients, working_clients_on_tasks,
+      local_working_clients, condor_working_clients
 
   def startClientsLocal(self, n):
-    n = int(n)
+    n = max(int(n), 0)
     for i in xrange(n):
       # launch new clients
       assert os.path.exists(self.manager_config_file)
@@ -77,7 +84,7 @@ class ClientManager(object):
     print "Started %s local clients" % n
 
   def startClientsCondor(self, n):
-    n = int(n)
+    n = max(int(n), 0)
     condor_file_string = \
 """Executable = /usr/local/bin/python
 Arguments = %s
@@ -117,39 +124,37 @@ Queue 1
 
     print "Started %s condor clients" % n
 
+  def startClients(self, n):
+    n = max(int(n), 0)
+    if self.config['runmode'] == "local":
+      self.startClientsLocal(self, n)
+    elif self.config['runmode'] == "condor"
+      self.startClientsCondor(self, n)
+    elif self.config['runmode'] == "hybrid"
+      num_clients_local = min(n, multiprocessing.cpu_count())
+      num_clients_condor = n - num_clients_local
+      self.startClientsLocal(num_clients_local)
+      if num_clients_condor >= 0:
+        self.startClientsCondor(num_clients_condor)
+
   def stopClientsLocal(self, n):
-    n = int(n)
-    working_clients, nonworking_clients, working_clients_on_tasks \
-      = self.__getWorkingNonWorkingClients()
-
-    local_working_clients = [x for x in working_clients if "local" in x]
-    if n > len(local_working_clients):
-      print "warning, n > # of working clients! stopping all clients!"
-      n = len(local_working_clients)
-
-    for i in xrange(n):
-      client_dir = local_working_clients[i]
-      cmd_file = os.path.join(client_dir, "command")
-      with open(cmd_file, 'wb') as f:
-        f.write("EXIT")
-        f.flush()
-        os.fsync(f.fileno())
-      os.rename(cmd_file, cmd_file + ".txt")
-
-    print "Stopped %s local clients" % n
+    self.__stopClients(n, "local")
 
   def stopClientsCondor(self, n):
-    n = int(n)
+    self.__stopClients(n, "condor")
+
+  def __stopClients(self, n, mode):
+    n = max(int(n), 0)
     working_clients, nonworking_clients, working_clients_on_tasks \
       = self.__getWorkingNonWorkingClients()
 
-    condor_working_clients = [x for x in working_clients if "condor" in x]
-    if n > len(condor_working_clients):
+    working_clients2 = [x for x in working_clients if mode in x]
+    if n > len(working_clients2):
       print "warning, n > # of working clients! stopping all clients!"
-      n = len(condor_working_clients)
+      n = len(working_clients2)
 
     for i in xrange(n):
-      client_dir = condor_working_clients[i]
+      client_dir = working_clients2[i]
       cmd_file = os.path.join(client_dir, "command")
       with open(cmd_file, 'wb') as f:
         f.write("EXIT")
@@ -157,7 +162,7 @@ Queue 1
         os.fsync(f.fileno())
       os.rename(cmd_file, cmd_file + ".txt")
 
-    print "Stopped %s condor clients" % n
+    print "Stopped %s %s clients" % (n, mode)
 
 if __name__ == "__main__":
   if len(sys.argv) < 2:

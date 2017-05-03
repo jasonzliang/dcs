@@ -9,15 +9,13 @@ from queue import FIFOQueue, TaskObject
 """Default config file settings"""
 DEFAULT_CONFIG = \
 {
-  # Number of client machines to spawn
-  "n_clients": 1,
   # Modes, allowed are: local, condor, hybrid
-  "mode": "local",
+  "runmode": "hybrid",
   # Base directory where all the files are located
   "base_dir": "completion_service",
   # Maximum size in kB for task data
   "task_data_maxsize": 64,
-  # Time to sleep in seconds when waiting for results to return
+  # Time to sleep in seconds between updating server status (tick rate)
   "sleep_time": 0.1,
   # Whether to print stuff out
   "verbose": True,
@@ -26,16 +24,16 @@ DEFAULT_CONFIG = \
   # Name for global return queue
   "result_queue_name": "result_queue",
   # Unique string to identify server
-  "server_name": "diddle",
+  "server_name": "server",
   # Number of times to retry submitting tasks
   "num_retries": 3,
   # If there are more clients than tasks, submit duplicate tasks instead
   "submit_duplicates": True,
   # Whether to return failures or not
   "return_failures": False,
-  # Whether to discard results not submitted by current instance of server
+  # Whether to return old results not submitted by current instance of server
   "return_old_results": False,
-  # Whether to use time elapsed for past tasks to auto estimate tasks
+  # Whether to use time elapsed for completed tasks to estimate future task time
   "auto_estimate_time": True,
   # Auto estimated time is mean + k * std_dev, where k is below
   "auto_estimate_time_std_dev": 2,
@@ -53,7 +51,7 @@ DEFAULT_CONFIG = \
   "client_error_maxsize": 64,
   # Have client print messages out
   "client_verbose": True,
-  # Sleep time between checking task completion
+  # Sleep time between updating client status (tick rate)
   "client_sleep_time": 0.1,
   # Interval for heartbeats
   "client_status_update_time": 1,
@@ -66,7 +64,7 @@ class CompletionServiceServer(object):
   def __init__(self, config_file=None, clean_start=False):
     self.start_time = time.time()
     self.config = updateConfig(DEFAULT_CONFIG, config_file)
-    self.submitted_tasks = {}
+    self.submitted_task_ids = {}
     self.tasks_elapsed_times = []
 
     if not os.path.exists(self.config['base_dir']):
@@ -148,6 +146,11 @@ class CompletionServiceServer(object):
         print "Removed failed client: %s" % client_dir
 
   def submitTask(self, task, task_data, estimated_time=None):
+    task = str(task)
+    task_data = str(task_data)
+    if estimated_time is not None:
+      estimated_time = float(estimated_time)
+
     self.__update_status()
 
     task = full_path(task)
@@ -155,7 +158,7 @@ class CompletionServiceServer(object):
     if len(task_data) > self.config['task_data_maxsize'] * 1000:
       print "Error: task data size (%s kb) exceeded maximum size (%s kb)" % \
         (len(task_data)/1000.0, self.config['task_data_maxsize'])
-      return False
+      return None
 
     if self.config['auto_estimate_time'] and estimated_time is None and \
       len(self.tasks_elapsed_times) > self.config['auto_estimate_time_min_samples']:
@@ -183,11 +186,11 @@ class CompletionServiceServer(object):
 
     for submit_task in tasks_to_submit:
       self.submit_queue.push(submit_task)
-      self.submitted_tasks[submit_task.uid] = submit_task.time_created
+      self.submitted_task_ids[submit_task.uid] = submit_task.time_created
       if self.config['verbose']:
         print "Submitted task: %s" % submit_task
 
-    return True
+    return submit_task
 
   def getResults(self, timeout=1e308):
     start_time = time.time()
@@ -202,7 +205,7 @@ class CompletionServiceServer(object):
         if (self.config['return_failures'] or \
           result_task.metadata['return_code'] == 0) and \
           (self.config['return_old_results'] or \
-          result_task.uid in self.submitted_tasks):
+          result_task.uid in self.submitted_task_ids):
 
           self.tasks_elapsed_times.append(result_task.metadata['time_elapsed'])
           if self.config['verbose']:
@@ -215,15 +218,17 @@ class CompletionServiceServer(object):
 
       time.sleep(self.config['sleep_time'])
 
-    if verbose:
-      print "Error: timeout occurred: %s" % timeout
+
+    print "Error: timeout occurred: %s" % timeout
     return None
 
 if __name__ == "__main__":
   x = CompletionServiceServer(clean_start=True)
 
-  n = 199
+  n = 10
   for i in xrange(n):
-    x.submitTask("test_tasks/square.py", i)
+    x.submitTask("test_tasks/square.py", i, estimated_time=random.random() + 0.5)
+    # print "i: %s" % x.getResults().task_data
+
   for i in xrange(10000000):
     print "i: %s" % x.getResults().task_data
