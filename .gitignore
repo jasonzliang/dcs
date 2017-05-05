@@ -90,3 +90,5 @@ ENV/
 
 completion_service
 results
+cluster
+condor_run
