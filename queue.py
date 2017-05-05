@@ -48,7 +48,7 @@ class FIFOQueue(object):
         self.queue_dir)
 
   def push(self, task_object):
-    task_obj_str = pickle.dumps(task_object)
+    task_obj_str = pickle.dumps(task_object, protocol=pickle.HIGHEST_PROTOCOL)
     # task_obj_str = jsonpickle.encode(task_object)
     # task_obj_hash = md5.new(task_obj_str).hexdigest()
     task_file = "%s.%s_%s_%s" % (int(time.time()),

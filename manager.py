@@ -3,6 +3,7 @@ import cPickle as pickle
 
 from util import Logger, getTime, full_path, updateConfig
 from server import DEFAULT_CONFIG
+from condor import CS_CONDOR_STRING
 
 class ClientManager(object):
   """Simple Class to Manage Clients on Condor and Locally"""
@@ -87,35 +88,17 @@ class ClientManager(object):
 
   def startClientsCondor(self, n):
     n = max(int(n), 0)
-    condor_file_string = \
-"""Executable = /usr/local/bin/python
-Arguments = %s
-Universe = vanilla
-Environment = ONCONDOR=true
-Getenv = true
-Requirements = ARCH == "X86_64" && !GPU
-
-+Group = "GRAD"
-+Project = "AI_ROBOTICS"
-+ProjectDescription = "Completion Service Client"
-
-Input = /dev/null
-Error = /dev/null
-Output = /dev/null
-Log = /dev/null
-Queue 1
-"""
     client_path = full_path("client.py")
     assert os.path.exists(client_path)
     assert os.path.exists(self.manager_config_file)
     arguments = "%s %s %s" % (client_path, self.manager_config_file, "condor")
-    condor_file_string = condor_file_string % arguments
+    condor_submit_string = CS_CONDOR_STRING % arguments
     # print condor_file_string
 
     manager_condor_file = os.path.join(self.config['base_dir'],
       "manager_condor_file")
     with open(manager_condor_file, 'wb') as f:
-      f.write(condor_file_string)
+      f.write(condor_submit_string)
       f.flush()
       os.fsync(f.fileno())
 
@@ -133,7 +116,7 @@ Queue 1
     elif self.config['runmode'] == "condor":
       self.startClientsCondor(n)
     elif self.config['runmode'] == "hybrid":
-      num_clients_local = min(n, multiprocessing.cpu_count())
+      num_clients_local = min(n, multiprocessing.cpu_count() - 1)
       num_clients_condor = n - num_clients_local
       self.startClientsLocal(num_clients_local)
       if num_clients_condor >= 0:
