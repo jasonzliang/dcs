@@ -89,3 +89,4 @@ ENV/
 .ropeproject
 
 completion_service
+results
