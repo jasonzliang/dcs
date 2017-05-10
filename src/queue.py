@@ -105,22 +105,25 @@ class FIFOQueue(object):
     return task_object
 
   def purge(self):
+    task_files = glob.glob(os.path.join(self.queue_dir, "*.task"))
+    while len(task_files) > 0:
+      for task_file in task_files:
+        try:
+          os.rename(task_file, task_file[:-5])
+        except:
+          continue
+        else:
+          os.remove(task_file[:-5])
+      task_files = glob.glob(os.path.join(self.queue_dir, "*.task"))
+    # os.system("rm -rf %s/*.task" % self.queue_dir)
     if DEBUG_MODE:
-      print "purging queue: %s" % self.queue_dir
-    os.system("rm -rf %s/*.task" % self.queue_dir)
-    # for task_file in glob.glob(os.path.join(self.queue_dir, "*.task")):
-    #   try:
-    #     os.rename(task_file, "/tmp/delete_me.task")
-    #   except:
-    #     continue
-    #   os.remove("/tmp/delete_me.task")
+      print "purged queue: %s" % self.queue_dir
 
   def delete(self):
+    shutil.rmtree(self.queue_dir)
+    # os.system("rm -rf %s" % self.queue_dir)
     if DEBUG_MODE:
-      print "deleting queue: %s" % self.queue_dir
-    os.system("rm -rf %s" % self.queue_dir)
-    # self.purge()
-    # shutil.rmtree(self.queue_dir)
+      print "deleted queue: %s" % self.queue_dir
 
   def length(self):
     return len(glob.glob(os.path.join(self.queue_dir, "*.task")))
