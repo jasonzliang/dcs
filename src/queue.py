@@ -105,8 +105,10 @@ class FIFOQueue(object):
     return task_object
 
   def purge(self):
-    task_files = glob.glob(os.path.join(self.queue_dir, "*.task"))
-    while len(task_files) > 0:
+    while True:
+      task_files = glob.glob(os.path.join(self.queue_dir, "*.task"))
+      if len(task_files) == 0:
+        break
       for task_file in task_files:
         try:
           os.rename(task_file, task_file[:-5])
@@ -114,7 +116,6 @@ class FIFOQueue(object):
           continue
         else:
           os.remove(task_file[:-5])
-      task_files = glob.glob(os.path.join(self.queue_dir, "*.task"))
     # os.system("rm -rf %s/*.task" % self.queue_dir)
     if DEBUG_MODE:
       print "purged queue: %s" % self.queue_dir
